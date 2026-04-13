@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-label="Screenshot placeholder: Apply fixes with backup and diff">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dcfce7"/>
+      <stop offset="1" stop-color="#bbf7d0"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#bg3)"/>
+  <!-- Terminal -->
+  <rect x="60" y="50" width="680" height="400" rx="10" fill="#0f172a" stroke="#1e293b"/>
+  <rect x="60" y="50" width="680" height="30" rx="10" fill="#1e293b"/>
+  <circle cx="80" cy="65" r="5" fill="#ef4444"/>
+  <circle cx="96" cy="65" r="5" fill="#f59e0b"/>
+  <circle cx="112" cy="65" r="5" fill="#22c55e"/>
+  <text x="400" y="70" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" fill="#94a3b8">claude-code — /shears-paper-improver:shears-fix</text>
+  <!-- Terminal content -->
+  <text x="80" y="110" font-family="ui-monospace, monospace" font-size="12" fill="#94a3b8">$ /shears-paper-improver:shears-fix</text>
+  <text x="80" y="134" font-family="ui-monospace, monospace" font-size="12" fill="#22c55e">✓</text>
+  <text x="100" y="134" font-family="ui-monospace, monospace" font-size="12" fill="#e2e8f0">Loaded selections from 2026-04-13_14-30</text>
+  <text x="80" y="154" font-family="ui-monospace, monospace" font-size="12" fill="#e2e8f0">  8 problems selected across 4 files</text>
+  <text x="80" y="174" font-family="ui-monospace, monospace" font-size="12" fill="#22c55e">✓</text>
+  <text x="100" y="174" font-family="ui-monospace, monospace" font-size="12" fill="#e2e8f0">Backup created: .shears/backups/2026-04-13_14-45</text>
+  <text x="80" y="198" font-family="ui-monospace, monospace" font-size="12" fill="#93c5fd">Applying fixes...</text>
+  <text x="80" y="218" font-family="ui-monospace, monospace" font-size="12" fill="#e2e8f0">  sections/1_Introduction.tex</text>
+  <text x="260" y="218" font-family="ui-monospace, monospace" font-size="12" fill="#22c55e">3 fixes</text>
+  <text x="80" y="236" font-family="ui-monospace, monospace" font-size="12" fill="#e2e8f0">  sections/3_Overview.tex</text>
+  <text x="260" y="236" font-family="ui-monospace, monospace" font-size="12" fill="#22c55e">2 fixes</text>
+  <text x="80" y="254" font-family="ui-monospace, monospace" font-size="12" fill="#e2e8f0">  sections/4_Method.tex</text>
+  <text x="260" y="254" font-family="ui-monospace, monospace" font-size="12" fill="#22c55e">3 fixes</text>
+  <text x="80" y="278" font-family="ui-monospace, monospace" font-size="12" fill="#22c55e">✓</text>
+  <text x="100" y="278" font-family="ui-monospace, monospace" font-size="12" fill="#e2e8f0">Recompiled successfully (22 pages)</text>
+  <text x="80" y="302" font-family="ui-monospace, monospace" font-size="12" fill="#fbbf24">?</text>
+  <text x="100" y="302" font-family="ui-monospace, monospace" font-size="12" fill="#e2e8f0">Comparison mode?</text>
+  <!-- Options -->
+  <rect x="100" y="318" width="460" height="26" rx="4" fill="#1e3a8a" stroke="#3b82f6"/>
+  <text x="120" y="335" font-family="ui-monospace, monospace" font-size="12" fill="#dbeafe">› latexdiff</text>
+  <text x="260" y="335" font-family="ui-monospace, monospace" font-size="11" fill="#93c5fd">PDF with red/green markup</text>
+  <rect x="100" y="350" width="460" height="22" rx="4" fill="transparent"/>
+  <text x="120" y="365" font-family="ui-monospace, monospace" font-size="12" fill="#94a3b8">  side-by-side</text>
+  <text x="260" y="365" font-family="ui-monospace, monospace" font-size="11" fill="#64748b">Before and after PDFs</text>
+  <rect x="100" y="378" width="460" height="22" rx="4" fill="transparent"/>
+  <text x="120" y="393" font-family="ui-monospace, monospace" font-size="12" fill="#94a3b8">  texdiff</text>
+  <text x="260" y="393" font-family="ui-monospace, monospace" font-size="11" fill="#64748b">Git-style unified diff</text>
+  <text x="80" y="432" font-family="ui-monospace, monospace" font-size="12" fill="#94a3b8">▊</text>
+</svg>

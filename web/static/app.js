@@ -300,36 +300,32 @@ window.locateProblem = async function(pid) {
   const url = `/api/locate?file=${encodeURIComponent(p.file)}&line_start=${p.line_start}&line_end=${p.line_end || p.line_start}`;
   const data = await fetchJSON(url);
 
-  let targetPage = p.page;
-  let boxes = null;
+  const targetPage = (data && data.page) || p.page;
+  const boxes = (data && data.boxes) || null;
 
-  if (data && data.page) {
-    targetPage = data.page;
-    boxes = data.boxes;
-  }
-
-  if (targetPage && targetPage !== state.currentPage) {
-    state.currentPage = targetPage;
-    state.pendingHighlight = boxes ? { boxes, page: targetPage } : null;
-    await renderPdfPage();
-  } else if (boxes) {
-    drawHighlights(boxes);
+  if (targetPage) {
+    clearHighlights();
+    if (boxes) drawHighlightsOnPage(targetPage, boxes);
+    scrollToPage(targetPage, boxes);
   }
 };
 
 window.clearHighlights = function() {
-  document.getElementById('highlight-layer').innerHTML = '';
+  for (const layer of document.querySelectorAll('.pdf-page .highlight-layer')) {
+    layer.innerHTML = '';
+  }
 };
 
 // ---------------------------------------------------------------------------
-// PDF Viewer
+// PDF Viewer — continuous scroll mode
 // ---------------------------------------------------------------------------
 async function initPdf() {
   try {
     state.pdfDoc = await pdfjsLib.getDocument('/pdf').promise;
     state.totalPages = state.pdfDoc.numPages;
     state.currentPage = 1;
-    await renderPdfPage();
+    await buildPages();
+    attachScrollTracking();
   } catch (e) {
     console.warn('Could not load PDF:', e);
     document.getElementById('pdf-viewport').innerHTML =
@@ -337,31 +333,56 @@ async function initPdf() {
   }
 }
 
-async function renderPdfPage() {
-  if (!state.pdfDoc || state.rendering) return;
-  state.rendering = true;
-  clearHighlights();
+async function buildPages() {
+  const container = document.getElementById('pdf-pages');
+  container.innerHTML = '';
 
+  // Compute the target scale once based on fit-width or zoom state
+  const firstPage = await state.pdfDoc.getPage(1);
+  const unscaled = firstPage.getViewport({ scale: 1 });
+  state.pdfPageWidth = unscaled.width;
+  state.pdfPageHeight = unscaled.height;
+
+  if (state.fitWidth) {
+    const viewport_el = document.getElementById('pdf-viewport');
+    const availWidth = viewport_el.clientWidth - 24;
+    state.scale = Math.min(availWidth / unscaled.width, 4);
+  }
+  document.getElementById('pdf-zoom-info').textContent = `${Math.round(state.scale * 100)}%`;
+
+  // Create placeholder divs immediately so the scrollbar height is correct
+  const scale = state.scale;
+  const pageDivs = [];
+  for (let n = 1; n <= state.totalPages; n++) {
+    const pageDiv = document.createElement('div');
+    pageDiv.className = 'pdf-page';
+    pageDiv.dataset.page = n;
+    pageDiv.style.width = `${unscaled.width * scale}px`;
+    pageDiv.style.height = `${unscaled.height * scale}px`;
+    const canvas = document.createElement('canvas');
+    const textLayer = document.createElement('div');
+    textLayer.className = 'textLayer';
+    const highlightLayer = document.createElement('div');
+    highlightLayer.className = 'highlight-layer';
+    pageDiv.appendChild(canvas);
+    pageDiv.appendChild(textLayer);
+    pageDiv.appendChild(highlightLayer);
+    container.appendChild(pageDiv);
+    pageDivs.push({ pageDiv, canvas, textLayer, n });
+  }
+
+  // Render each page sequentially (but don't block the UI — use yield points)
+  for (const { canvas, textLayer, n } of pageDivs) {
+    await renderOnePage(n, canvas, textLayer, scale);
+  }
+}
+
+async function renderOnePage(n, canvas, textLayer, scale) {
   try {
-    const page = await state.pdfDoc.getPage(state.currentPage);
-    const canvas = document.getElementById('pdf-canvas');
+    const page = await state.pdfDoc.getPage(n);
+    const viewport = page.getViewport({ scale });
     const ctx = canvas.getContext('2d');
 
-    const unscaledViewport = page.getViewport({ scale: 1 });
-    state.pdfPageWidth = unscaledViewport.width;
-    state.pdfPageHeight = unscaledViewport.height;
-
-    let scale = state.scale;
-    if (state.fitWidth) {
-      const viewport_el = document.getElementById('pdf-viewport');
-      const availWidth = viewport_el.clientWidth - 24;
-      scale = Math.min(availWidth / unscaledViewport.width, 4);
-    }
-    state.scale = scale;
-
-    const viewport = page.getViewport({ scale });
-
-    // Render canvas at device pixel ratio for crisp text
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.floor(viewport.width * dpr);
     canvas.height = Math.floor(viewport.height * dpr);
@@ -369,63 +390,37 @@ async function renderPdfPage() {
     canvas.style.height = `${viewport.height}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Set page container size to match
-    const container = document.getElementById('pdf-page-container');
-    container.style.width = `${viewport.width}px`;
-    container.style.height = `${viewport.height}px`;
-
     await page.render({ canvasContext: ctx, viewport }).promise;
 
-    // Render the text layer for selection/search
-    await renderTextLayer(page, viewport);
-
-    document.getElementById('pdf-page-info').textContent =
-      `Page ${state.currentPage} / ${state.totalPages}`;
-    document.getElementById('pdf-zoom-info').textContent = `${Math.round(scale * 100)}%`;
-
-    // Apply pending highlight if it targets this page
-    if (state.pendingHighlight && state.pendingHighlight.page === state.currentPage) {
-      drawHighlights(state.pendingHighlight.boxes);
-      state.pendingHighlight = null;
+    // Text layer for selection/search
+    textLayer.innerHTML = '';
+    textLayer.style.width = `${viewport.width}px`;
+    textLayer.style.height = `${viewport.height}px`;
+    textLayer.style.setProperty('--scale-factor', viewport.scale);
+    try {
+      const textContent = await page.getTextContent();
+      const renderTask = new pdfjsLib.TextLayer({
+        textContentSource: textContent,
+        container: textLayer,
+        viewport: viewport,
+      });
+      await renderTask.render();
+    } catch (e) {
+      // non-fatal
     }
   } catch (e) {
-    console.error('PDF render error:', e);
-  } finally {
-    state.rendering = false;
+    console.error(`Render error on page ${n}:`, e);
   }
 }
 
-async function renderTextLayer(page, viewport) {
-  const textLayerDiv = document.getElementById('text-layer');
-  textLayerDiv.innerHTML = '';
-  textLayerDiv.style.width = `${viewport.width}px`;
-  textLayerDiv.style.height = `${viewport.height}px`;
-  textLayerDiv.style.setProperty('--scale-factor', viewport.scale);
-
-  try {
-    const textContent = await page.getTextContent();
-    const renderTask = new pdfjsLib.TextLayer({
-      textContentSource: textContent,
-      container: textLayerDiv,
-      viewport: viewport,
-    });
-    await renderTask.render();
-  } catch (e) {
-    console.warn('Text layer render error:', e);
-  }
-}
-
-function drawHighlights(boxes) {
-  const layer = document.getElementById('highlight-layer');
+function drawHighlightsOnPage(pageNum, boxes) {
+  const pageDiv = document.querySelector(`.pdf-page[data-page="${pageNum}"]`);
+  if (!pageDiv) return;
+  const layer = pageDiv.querySelector('.highlight-layer');
   layer.innerHTML = '';
   if (!boxes || boxes.length === 0) return;
 
   const scale = state.scale;
-  layer.style.width = `${state.pdfPageWidth * scale}px`;
-  layer.style.height = `${state.pdfPageHeight * scale}px`;
-
-  // Synctex coordinates are in PDF points with origin at top-left.
-  let firstBoxY = null;
   for (const box of boxes) {
     const div = document.createElement('div');
     div.className = 'highlight-box';
@@ -434,55 +429,85 @@ function drawHighlights(boxes) {
     div.style.width = `${box.w * scale}px`;
     div.style.height = `${box.h * scale}px`;
     layer.appendChild(div);
-    if (firstBoxY === null) firstBoxY = box.y * scale;
-  }
-
-  // Scroll the first highlight into view
-  if (firstBoxY !== null) {
-    const viewport = document.getElementById('pdf-viewport');
-    const container = document.getElementById('pdf-page-container');
-    viewport.scrollTo({
-      top: container.offsetTop + firstBoxY - 100,
-      behavior: 'smooth',
-    });
   }
 }
 
-window.pdfPrevPage = function() {
-  if (state.currentPage > 1) {
-    state.currentPage--;
-    renderPdfPage();
+function scrollToPage(pageNum, boxes) {
+  const pageDiv = document.querySelector(`.pdf-page[data-page="${pageNum}"]`);
+  if (!pageDiv) return;
+  const viewport = document.getElementById('pdf-viewport');
+  const scale = state.scale;
+
+  let targetTop = pageDiv.offsetTop - 20;
+  if (boxes && boxes.length > 0) {
+    const firstBoxY = Math.min(...boxes.map(b => b.y)) * scale;
+    targetTop = pageDiv.offsetTop + firstBoxY - 100;
   }
+  viewport.scrollTo({ top: targetTop, behavior: 'smooth' });
+}
+
+function attachScrollTracking() {
+  const viewport = document.getElementById('pdf-viewport');
+  let rafId = null;
+  viewport.addEventListener('scroll', () => {
+    if (rafId) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      updateCurrentPageFromScroll();
+    });
+  });
+  updateCurrentPageFromScroll();
+}
+
+function updateCurrentPageFromScroll() {
+  const viewport = document.getElementById('pdf-viewport');
+  const pages = document.querySelectorAll('.pdf-page');
+  const viewportMid = viewport.scrollTop + viewport.clientHeight / 3;
+  let current = 1;
+  for (const p of pages) {
+    const top = p.offsetTop;
+    const bottom = top + p.offsetHeight;
+    if (top <= viewportMid && viewportMid < bottom) {
+      current = parseInt(p.dataset.page, 10);
+      break;
+    }
+  }
+  state.currentPage = current;
+  document.getElementById('pdf-page-info').textContent =
+    `Page ${current} / ${state.totalPages}`;
+}
+
+window.pdfPrevPage = function() {
+  const n = Math.max(1, state.currentPage - 1);
+  scrollToPage(n, null);
 };
 
 window.pdfNextPage = function() {
-  if (state.currentPage < state.totalPages) {
-    state.currentPage++;
-    renderPdfPage();
-  }
+  const n = Math.min(state.totalPages, state.currentPage + 1);
+  scrollToPage(n, null);
 };
 
-window.pdfZoomIn = function() {
+window.pdfZoomIn = async function() {
   state.fitWidth = false;
   state.scale = Math.min(state.scale * 1.25, 5);
-  renderPdfPage();
+  await buildPages();
 };
 
-window.pdfZoomOut = function() {
+window.pdfZoomOut = async function() {
   state.fitWidth = false;
   state.scale = Math.max(state.scale / 1.25, 0.25);
-  renderPdfPage();
+  await buildPages();
 };
 
-window.pdfZoomFit = function() {
+window.pdfZoomFit = async function() {
   state.fitWidth = true;
-  renderPdfPage();
+  await buildPages();
 };
 
-window.pdfZoomReset = function() {
+window.pdfZoomReset = async function() {
   state.fitWidth = false;
   state.scale = 1.0;
-  renderPdfPage();
+  await buildPages();
 };
 
 // Keyboard shortcuts
@@ -522,7 +547,7 @@ async function init() {
   window.addEventListener('resize', () => {
     if (!state.fitWidth) return;
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(renderPdfPage, 200);
+    resizeTimer = setTimeout(() => buildPages(), 250);
   });
 }
 

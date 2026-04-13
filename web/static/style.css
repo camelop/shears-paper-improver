@@ -332,20 +332,29 @@ main {
 #pdf-viewport {
   flex: 1;
   overflow: auto;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
   padding: 12px;
 }
-#pdf-page-container {
-  position: relative;
-  display: inline-block;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  background: white;
+#pdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
-#pdf-canvas {
+.pdf-page {
+  position: relative;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  flex-shrink: 0;
+}
+.pdf-page canvas {
   display: block;
   background: white;
+}
+.pdf-page .highlight-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
 }
 
 /* PDF.js text layer (for selection and search) */
@@ -389,12 +398,6 @@ main {
 }
 
 /* Highlight overlay (on Locate) */
-#highlight-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 3;
-}
 .highlight-box {
   position: absolute;
   background: rgba(255, 220, 0, 0.45);

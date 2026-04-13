@@ -27,20 +27,45 @@
 </header>
 
 <section class="hero">
-  <div class="container">
-    <img src="assets/logo.png" alt="Shears" class="hero-logo">
-    <h1>Check and fix your LaTeX papers<br><span class="accent">with Claude Code.</span></h1>
-    <p class="lead">
-      Shears spawns parallel checker agents to find typos, grammar issues, and terminology
-      inconsistencies across your paper. Review results in a local web UI with an embedded
-      PDF viewer that highlights the exact region of each problem. Apply selected fixes with
-      one command — backups, conflict detection, and diff comparison included.
-    </p>
-    <div class="cta-row">
-      <a href="#install" class="btn-primary">Get started</a>
-      <a href="https://github.com/camelop/shears-paper-improver" class="btn-outline">View on GitHub</a>
+  <div class="container hero-grid">
+    <div class="hero-text">
+      <img src="assets/logo.png" alt="Shears" class="hero-logo">
+      <h1>Check and fix your LaTeX papers<br><span class="accent">with Claude Code.</span></h1>
+      <p class="lead">
+        Shears spawns parallel checker agents to find typos, grammar issues, and terminology
+        inconsistencies across your paper. Review results in a local web UI with an embedded
+        PDF viewer that highlights the exact region of each problem. Apply selected fixes with
+        one command — backups, conflict detection, and diff comparison included.
+      </p>
+      <div class="cta-row">
+        <a href="#install" class="btn-primary">Get started</a>
+        <a href="https://github.com/camelop/shears-paper-improver" class="btn-outline">View on GitHub</a>
+      </div>
+      <code class="hero-code">/shears-paper-improver:shears-check</code>
     </div>
-    <code class="hero-code">/shears-paper-improver:shears-check</code>
+    <div class="hero-visual">
+      <div class="carousel" id="screenshot-carousel">
+        <div class="carousel-track">
+          <figure class="slide active">
+            <img src="assets/screenshot-1.svg" alt="Shears web UI — problem list with PDF viewer">
+            <figcaption>Review problems with inline PDF viewer</figcaption>
+          </figure>
+          <figure class="slide">
+            <img src="assets/screenshot-2.svg" alt="Shears web UI — locate highlights">
+            <figcaption>Locate a problem — highlighted on the PDF</figcaption>
+          </figure>
+          <figure class="slide">
+            <img src="assets/screenshot-3.svg" alt="Shears fix workflow">
+            <figcaption>Apply selected fixes with safe backups</figcaption>
+          </figure>
+        </div>
+        <div class="carousel-dots">
+          <button class="dot active" data-idx="0" aria-label="Slide 1"></button>
+          <button class="dot" data-idx="1" aria-label="Slide 2"></button>
+          <button class="dot" data-idx="2" aria-label="Slide 3"></button>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -165,46 +190,6 @@ text
   </div>
 </section>
 
-<section id="how" class="section">
-  <div class="container">
-    <h2>How it works</h2>
-    <div class="arch-wrap">
-      <pre class="arch">
-┌──────────────┐   compile     ┌──────────────┐
-│  main.tex    │──────────────▶│ main.pdf     │
-│  sections/*  │               │ main.synctex │
-└──────────────┘               └──────┬───────┘
-                                      │ parse
-                                      ▼
-                               ┌──────────────┐
-                               │ page ↔ line  │
-                               │   mapping    │
-                               └──────┬───────┘
-                                      │
-                  ┌───────────────────┼───────────────────┐
-                  ▼                   ▼                   ▼
-          ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-          │ typo agent   │   │ grammar      │   │ term         │
-          │ (parallel)   │   │ agent        │   │ consistency  │
-          └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-                 │                   │                   │
-                 └───────────────────┼───────────────────┘
-                                     ▼
-                            .shears/results/
-                            ├── check/     ── .md + .json per problem
-                            ├── progress/  ── live progress
-                            └── selected.toml
-                                     │
-                                     ▼
-                          ┌──────────────────────┐
-                          │  Flask web UI        │
-                          │  + PDF.js viewer     │
-                          │  + synctex locate    │
-                          └──────────────────────┘</pre>
-    </div>
-  </div>
-</section>
-
 <footer class="site-footer">
   <div class="container">
     <p>
@@ -220,6 +205,42 @@ text
     </p>
   </div>
 </footer>
+
+<script>
+// Carousel auto-advance + manual dot navigation
+(function() {
+  const carousel = document.getElementById('screenshot-carousel');
+  if (!carousel) return;
+  const slides = carousel.querySelectorAll('.slide');
+  const dots = carousel.querySelectorAll('.dot');
+  let idx = 0;
+  let timer;
+
+  function show(n) {
+    idx = (n + slides.length) % slides.length;
+    slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+  }
+  function advance() { show(idx + 1); }
+  function resetTimer() {
+    clearInterval(timer);
+    timer = setInterval(advance, 5000);
+  }
+
+  dots.forEach(dot => {
+    dot.addEventListener('click', () => {
+      show(parseInt(dot.dataset.idx, 10));
+      resetTimer();
+    });
+  });
+
+  // Pause on hover
+  carousel.addEventListener('mouseenter', () => clearInterval(timer));
+  carousel.addEventListener('mouseleave', resetTimer);
+
+  resetTimer();
+})();
+</script>
 
 </body>
 </html>

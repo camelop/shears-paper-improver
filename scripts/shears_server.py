@@ -142,10 +142,17 @@ def create_app(plugin_root: Path) -> Flask:
         problems = _scan_problems()
         selections = _read_selections()
         selected_count = sum(1 for v in selections.values() if v)
+        pdf_mtime = 0.0
+        if PDF_PATH and PDF_PATH.exists():
+            try:
+                pdf_mtime = PDF_PATH.stat().st_mtime
+            except OSError:
+                pass
         return jsonify({
             "total_problems": len(problems),
             "selected_count": selected_count,
             "all_done": _is_done(),
+            "pdf_mtime": pdf_mtime,
         })
 
     @application.route("/api/selections", methods=["GET"])
@@ -176,7 +183,12 @@ def create_app(plugin_root: Path) -> Flask:
     @application.route("/pdf")
     def serve_pdf():
         if PDF_PATH and PDF_PATH.exists():
-            return send_file(PDF_PATH, mimetype="application/pdf")
+            resp = send_file(PDF_PATH, mimetype="application/pdf")
+            # Disable caching so PDF.js fetches the current file after recompile
+            resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
+            return resp
         return jsonify({"error": "PDF not found"}), 404
 
     @application.route("/api/locate")

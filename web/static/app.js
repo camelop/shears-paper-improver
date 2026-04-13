@@ -17,12 +17,13 @@ const state = {
   pdfDoc: null,
   currentPage: 1,
   totalPages: 0,
-  scale: 1.0,               // current zoom scale
-  fitWidth: true,           // auto-fit to viewport width
+  scale: 1.0,
+  fitWidth: true,
   rendering: false,
-  pdfPageHeight: 0,         // current page height in PDF points
-  pdfPageWidth: 0,          // current page width in PDF points
-  pendingHighlight: null,   // {boxes, page} when locate fires before render completes
+  pdfPageHeight: 0,
+  pdfPageWidth: 0,
+  pdfMtime: 0,              // mtime of PDF as last loaded — detect recompiles
+  lastLocated: null,        // last located problem ID — replayed after PDF reload
 };
 
 const POLL_ACTIVE = 2000;
@@ -88,6 +89,29 @@ async function pollProgress() {
   }
 }
 
+async function pollPdfStatus() {
+  const data = await fetchJSON('/api/status');
+  if (!data || !data.pdf_mtime) return;
+  if (state.pdfMtime === 0) {
+    state.pdfMtime = data.pdf_mtime;
+    return;
+  }
+  if (data.pdf_mtime > state.pdfMtime) {
+    // PDF was recompiled (e.g., by /shears-fix). Reload it and replay the last highlight.
+    state.pdfMtime = data.pdf_mtime;
+    try {
+      state.pdfDoc = await pdfjsLib.getDocument(`/pdf?t=${data.pdf_mtime}`).promise;
+      state.totalPages = state.pdfDoc.numPages;
+      await buildPages();
+      if (state.lastLocated) {
+        window.locateProblem(state.lastLocated);
+      }
+    } catch (e) {
+      console.warn('PDF reload failed:', e);
+    }
+  }
+}
+
 async function loadSelections() {
   const data = await fetchJSON('/api/selections');
   if (!data) return;
@@ -99,7 +123,7 @@ async function loadSelections() {
 function startPolling() {
   async function tick() {
     if (pollInterval === 0) return;
-    await Promise.all([pollProblems(), pollProgress()]);
+    await Promise.all([pollProblems(), pollProgress(), pollPdfStatus()]);
     pollTimer = setTimeout(tick, pollInterval);
   }
   tick();
@@ -362,16 +386,25 @@ window.locateProblem = async function(pid) {
   const boxes = (data && data.boxes) || null;
 
   if (targetPage) {
-    clearHighlights();
+    clearHighlightBoxes();  // clears DOM only — keeps lastLocated
     if (boxes) drawHighlightsOnPage(targetPage, boxes);
     scrollToPage(targetPage, boxes);
+    // Remember AFTER clearing, so poll-triggered PDF reload can replay this
+    state.lastLocated = pid;
   }
 };
 
-window.clearHighlights = function() {
+// Internal: just wipe the highlight-box DOM (used by locateProblem)
+function clearHighlightBoxes() {
   for (const layer of document.querySelectorAll('.pdf-page .highlight-layer')) {
     layer.innerHTML = '';
   }
+}
+
+// User-facing: "Clear" toolbar button — also forgets which problem was located
+window.clearHighlights = function() {
+  clearHighlightBoxes();
+  state.lastLocated = null;
 };
 
 // ---------------------------------------------------------------------------
@@ -379,7 +412,11 @@ window.clearHighlights = function() {
 // ---------------------------------------------------------------------------
 async function initPdf() {
   try {
-    state.pdfDoc = await pdfjsLib.getDocument('/pdf').promise;
+    // Fetch PDF mtime first so we can detect future recompiles
+    const status = await fetchJSON('/api/status');
+    const mtime = (status && status.pdf_mtime) || Date.now() / 1000;
+    state.pdfMtime = mtime;
+    state.pdfDoc = await pdfjsLib.getDocument(`/pdf?t=${mtime}`).promise;
     state.totalPages = state.pdfDoc.numPages;
     state.currentPage = 1;
     await buildPages();

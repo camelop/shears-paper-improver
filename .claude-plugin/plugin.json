@@ -1,0 +1,11 @@
+{
+  "name": "shears-paper-improver",
+  "version": "0.1.0",
+  "description": "Check and fix LaTeX paper quality issues using configurable criteria, synctex source mapping, and a local web UI for reviewing problems and selecting fixes.",
+  "authors": [
+    {"name": "Clive2312", "email": "clivehaha@outlook.com"},
+    {"name": "littleround", "email": "23360163+camelop@users.noreply.github.com"},
+    {"name": "Claude"}
+  ],
+  "homepage": "https://github.com/camelop/shears-paper-improver"
+}

@@ -6,9 +6,22 @@
 
 **A Claude Code plugin that checks and fixes LaTeX paper quality using configurable criteria, synctex-based PDF mapping, and a local web UI with inline PDF viewer.**
 
+(name from [Slay the Spire 2](https://sts2.gg/relics/precarious-shears))
+
 [Features](#features) · [Installation](#installation) · [Usage](#usage) · [Custom Criteria](#custom-criteria) · [How It Works](#how-it-works)
 
 </div>
+
+## Highlights
+
+- Find improvements
+<img width="2550" height="1267" alt="locating_improvements" src="https://github.com/user-attachments/assets/2c4d0df1-3228-41f5-9aed-04ae9a818a43" />
+
+- See agents action in parallel
+<img width="1344" height="410" alt="parallel_agents" src="https://github.com/user-attachments/assets/f3b951ba-773f-4b98-aa8c-1d9261952542" />
+
+- Apply selected fixes
+<img width="2440" height="1184" alt="apply_fixes" src="https://github.com/user-attachments/assets/7ace4a58-0528-4ca7-a2bc-50ce1c7f05a9" />
 
 ---
 

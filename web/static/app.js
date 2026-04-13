@@ -10,6 +10,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '/static/pdf.worker.min.mjs';
 const state = {
   problems: new Map(),      // id -> problem object
   selections: new Map(),    // id -> boolean
+  expanded: new Set(),      // problem IDs whose card body is expanded
   progress: {},             // criteria -> {current_page, total_pages, status}
   groupMode: 'criteria',    // 'criteria' | 'page'
   allDone: false,
@@ -134,8 +135,7 @@ function renderProgress() {
     const current = info.current_page || 0;
     const pct = total > 0 ? Math.round((current / total) * 100) : 0;
     const isDone = info.status === 'completed';
-    const isPending = info.status === 'pending';
-    const statusText = isDone ? 'Done' : (isPending ? 'Pending' : `${current}/${total}`);
+    const statusText = isDone ? 'Done' : `${current}/${total}`;
     return `
       <div class="progress-item">
         <span class="progress-label">${escapeHtml(name)}</span>
@@ -152,8 +152,12 @@ function renderProgress() {
 // Rendering: Problems
 // ---------------------------------------------------------------------------
 function renderProblems() {
+  const panel = document.getElementById('problems-panel');
   const container = document.getElementById('problems-container');
   const problems = Array.from(state.problems.values());
+
+  // Preserve scroll position across re-renders
+  const prevScroll = panel ? panel.scrollTop : 0;
 
   if (problems.length === 0) {
     container.innerHTML = '<div class="empty-state">Waiting for problems to be reported...</div>';
@@ -173,10 +177,14 @@ function renderProblems() {
 
   container.innerHTML = html;
   updateSelectionCount();
+
+  // Restore scroll position
+  if (panel) panel.scrollTop = prevScroll;
 }
 
 function renderCard(p) {
   const selected = state.selections.get(p.id) !== false;
+  const isExpanded = state.expanded.has(p.id);
   const severity = p.severity || 'low';
   const confidence = typeof p.confidence === 'number' ? p.confidence : null;
   const confidenceClass = confidence === null ? '' : (confidence >= 80 ? '' : (confidence >= 60 ? 'medium' : 'low'));
@@ -187,7 +195,7 @@ function renderCard(p) {
       <div class="card-header">
         <input type="checkbox" ${selected ? 'checked' : ''}
                onchange="window.toggleSelection('${pidEsc}', this.checked)">
-        <div class="card-summary" onclick="window.toggleExpand(this.closest('.problem-card'))">
+        <div class="card-summary" onclick="window.toggleExpand('${pidEsc}')">
           <span class="card-title">${escapeHtml(p.title || p.id)}</span>
           <div class="card-meta">
             <span class="severity-tag ${severity}">${severity}</span>
@@ -209,7 +217,7 @@ function renderCard(p) {
           ${p.page ? `<button class="btn-locate" onclick="window.locateProblem('${pidEsc}')">Locate</button>` : ''}
         </div>
       </div>
-      <div class="card-body">
+      <div class="card-body${isExpanded ? ' expanded' : ''}">
         <h4>Description</h4>
         <p>${escapeHtml(p.description || 'No description')}</p>
         ${p.original_text ? `
@@ -268,9 +276,17 @@ window.toggleSelection = function(pid, checked) {
   syncSelectionsToServer();
 };
 
-window.toggleExpand = function(card) {
-  const body = card.querySelector('.card-body');
-  if (body) body.classList.toggle('expanded');
+window.toggleExpand = function(pid) {
+  if (state.expanded.has(pid)) {
+    state.expanded.delete(pid);
+  } else {
+    state.expanded.add(pid);
+  }
+  const card = document.querySelector(`.problem-card[data-id="${pid}"]`);
+  if (card) {
+    const body = card.querySelector('.card-body');
+    if (body) body.classList.toggle('expanded', state.expanded.has(pid));
+  }
 };
 
 window.setGroupMode = function(mode) {

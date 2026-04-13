@@ -48,18 +48,25 @@ async function pollProblems() {
   if (!data) return;
 
   let changed = false;
+  let newProblem = false;
   for (const p of data.problems) {
-    if (!state.problems.has(p.id)) {
+    const existing = state.problems.get(p.id);
+    if (!existing) {
       state.problems.set(p.id, p);
-      if (!state.selections.has(p.id)) {
-        state.selections.set(p.id, true);
-      }
+      if (!state.selections.has(p.id)) state.selections.set(p.id, true);
+      changed = true;
+      newProblem = true;
+    } else if (existing.status !== p.status) {
+      // Status transitioned (e.g., to resolved or skipped after /shears-fix)
+      state.problems.set(p.id, p);
+      // Auto-deselect resolved items so they don't get fixed again
+      if (p.status === 'resolved') state.selections.set(p.id, false);
       changed = true;
     }
   }
   if (changed) {
     renderProblems();
-    syncSelectionsToServer();
+    if (newProblem) syncSelectionsToServer();
   }
 }
 
@@ -189,15 +196,27 @@ function renderCard(p) {
   const confidence = typeof p.confidence === 'number' ? p.confidence : null;
   const confidenceClass = confidence === null ? '' : (confidence >= 80 ? '' : (confidence >= 60 ? 'medium' : 'low'));
   const pidEsc = escapeAttr(p.id);
+  const status = p.status || '';  // 'resolved' | 'skipped' | ''
+  const isResolved = status === 'resolved';
+  const isSkipped = status === 'skipped';
+  const statusClass = isResolved ? ' resolved' : (isSkipped ? ' skipped' : '');
+
+  let statusTag = '';
+  if (isResolved) {
+    statusTag = '<span class="status-tag status-resolved">✓ Resolved</span><span class="meta-sep">·</span>';
+  } else if (isSkipped) {
+    statusTag = `<span class="status-tag status-skipped" title="${escapeAttr(p.skipped_reason || '')}">⚠ Skipped</span><span class="meta-sep">·</span>`;
+  }
 
   return `
-    <div class="problem-card severity-${severity} ${selected ? 'selected' : ''}" data-id="${pidEsc}">
+    <div class="problem-card severity-${severity}${selected ? ' selected' : ''}${statusClass}" data-id="${pidEsc}">
       <div class="card-header">
-        <input type="checkbox" ${selected ? 'checked' : ''}
+        <input type="checkbox" ${selected ? 'checked' : ''} ${isResolved ? 'disabled' : ''}
                onchange="window.toggleSelection('${pidEsc}', this.checked)">
         <div class="card-summary" onclick="window.toggleExpand('${pidEsc}')">
           <span class="card-title">${escapeHtml(p.title || p.id)}</span>
           <div class="card-meta">
+            ${statusTag}
             <span class="severity-tag ${severity}">${severity}</span>
             ${confidence !== null ? `
               <span class="confidence-tag" title="Confidence: ${confidence}%">
@@ -220,6 +239,10 @@ function renderCard(p) {
       <div class="card-body${isExpanded ? ' expanded' : ''}">
         <h4>Description</h4>
         <p>${escapeHtml(p.description || 'No description')}</p>
+        ${isSkipped && p.skipped_reason ? `
+          <h4>Skip Reason</h4>
+          <p>${escapeHtml(p.skipped_reason)}</p>
+        ` : ''}
         ${p.original_text ? `
           <h4>Original</h4>
           <pre class="diff-old">${escapeHtml(p.original_text)}</pre>
@@ -252,17 +275,32 @@ function groupProblems(problems, mode) {
     return a[0].localeCompare(b[0]);
   }));
 
+  // Within each group, unresolved first, then skipped, then resolved.
+  // Inside each status bucket sort by page, then line.
+  const statusRank = (p) => p.status === 'resolved' ? 2 : (p.status === 'skipped' ? 1 : 0);
   for (const [, items] of sorted) {
-    items.sort((a, b) => (a.page || 0) - (b.page || 0) || (a.line_start || 0) - (b.line_start || 0));
+    items.sort((a, b) =>
+      statusRank(a) - statusRank(b) ||
+      (a.page || 0) - (b.page || 0) ||
+      (a.line_start || 0) - (b.line_start || 0)
+    );
   }
 
   return sorted;
 }
 
 function updateSelectionCount() {
-  const total = state.problems.size;
-  const selected = Array.from(state.selections.values()).filter(Boolean).length;
-  document.getElementById('selection-count').textContent = `${selected} / ${total} selected`;
+  let total = 0;
+  let selected = 0;
+  let resolved = 0;
+  for (const [pid, p] of state.problems) {
+    if (p.status === 'resolved') { resolved++; continue; }
+    total++;
+    if (state.selections.get(pid) !== false) selected++;
+  }
+  const parts = [`${selected} / ${total} selected`];
+  if (resolved > 0) parts.push(`${resolved} resolved`);
+  document.getElementById('selection-count').textContent = parts.join(' · ');
 }
 
 // ---------------------------------------------------------------------------
@@ -298,13 +336,17 @@ window.setGroupMode = function(mode) {
 };
 
 window.selectAll = function() {
-  for (const pid of state.problems.keys()) state.selections.set(pid, true);
+  for (const [pid, p] of state.problems) {
+    if (p.status !== 'resolved') state.selections.set(pid, true);
+  }
   renderProblems();
   syncSelectionsToServer();
 };
 
 window.deselectAll = function() {
-  for (const pid of state.problems.keys()) state.selections.set(pid, false);
+  for (const [pid, p] of state.problems) {
+    if (p.status !== 'resolved') state.selections.set(pid, false);
+  }
   renderProblems();
   syncSelectionsToServer();
 };

@@ -40,6 +40,7 @@ For each selected problem ID:
 1. Read the corresponding `.md` file from `${SESSION_DIR}/check/`
 2. Read the corresponding `.json` file to get structured data
 3. If a file is missing, warn and skip that problem
+4. **If the JSON already has `"status": "resolved"`, skip it silently** — it was already fixed in a previous run
 
 Build a list of selected problems with their full details.
 
@@ -82,10 +83,14 @@ Apply fixes **file by file**. For each affected file:
 3. For each fix, use the `Edit` tool to apply the change:
    - Use the `original_text` from the JSON as `old_string`
    - Use the `suggested_fix` from the JSON as `new_string`
-   - If `original_text` is not found exactly, search nearby lines. If still not found, skip and warn.
-4. After applying all fixes to a file, move to the next file.
+   - If `original_text` is not found exactly, search nearby lines. If still not found, mark as skipped (see below) and warn.
+4. **After each fix attempt, update the problem's JSON sidecar** at `${SESSION_DIR}/check/<id>.json` with the outcome:
+   - Successful: add/set `"status": "resolved"` and `"resolved_at": "<ISO8601 UTC timestamp>"`
+   - Skipped (not found / conflict): add/set `"status": "skipped"` and `"skipped_reason": "<short reason>"`
+   - Preserve all existing fields in the JSON. Use Read → modify → Write (Write overwrites the file).
+5. After applying all fixes to a file, move to the next file.
 
-Working bottom-to-top ensures earlier line numbers remain valid after each edit.
+Working bottom-to-top ensures earlier line numbers remain valid after each edit. The web UI polls `/api/problems` and will pick up the new `status` field within a couple of seconds — resolved problems get a green strikethrough in the list.
 
 ## Phase 5: Recompile
 

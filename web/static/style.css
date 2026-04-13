@@ -179,6 +179,37 @@ main {
 .problem-card.selected { background: #f8f9ff; }
 .problem-card:hover { border-color: #adb5bd; }
 
+.problem-card.resolved {
+  opacity: 0.6;
+  border-left-color: var(--success) !important;
+  background: #f4fbf6;
+}
+.problem-card.resolved .card-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.problem-card.resolved input[type="checkbox"] {
+  cursor: not-allowed;
+}
+.problem-card.skipped {
+  border-left-color: #868e96 !important;
+  background: #fffaf0;
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.status-resolved { background: #d3f9d8; color: var(--success); }
+.status-skipped  { background: #fff0c2; color: #b58100; }
+
 .card-header {
   display: flex;
   align-items: flex-start;
